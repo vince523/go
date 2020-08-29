@@ -199,6 +199,7 @@ func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 
 	lock(&c.lock)
 
+	// 当调用close(c) 会调用 closechan， closechan 会把c.closed = 1
 	if c.closed != 0 {
 		unlock(&c.lock)
 		panic(plainError("send on closed channel"))
@@ -506,14 +507,22 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 
 	lock(&c.lock)
 
+	// 当 chan 被关闭了， 且 通道buffer 为空时
 	if c.closed != 0 && c.qcount == 0 {
 		if raceenabled {
 			raceacquire(c.raceaddr())
 		}
 		unlock(&c.lock)
+		// ep 是chan 接收值的地址， 例如：case val, ok := <-c :  ep 相当于 ep == &val
+		// 只要 ep 不为空，接收者就还是可以获得值
+		// typedmemclr clears the typed memory at ptr with type typ.
+		// typedmemclr 就是根据类型清除对应变量的地址内存
+		// 所以chan 的接收者，这里就会收到一个对应数据类型的零值，
 		if ep != nil {
 			typedmemclr(c.elemtype, ep)
 		}
+		// case val, ok := <-c:
+		// ok == false, 这也就是为什么关闭的chan，ok 会一直返回false
 		return true, false
 	}
 
