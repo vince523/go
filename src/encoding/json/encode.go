@@ -1216,6 +1216,7 @@ func typeFields(t reflect.Type) structFields {
 					if t.Kind() == reflect.Ptr {
 						t = t.Elem()
 					}
+					// 嵌套的匿名结构体,如果也是不可导出，则会直接跳过
 					if isUnexported && t.Kind() != reflect.Struct {
 						// Ignore embedded fields of unexported non-struct types.
 						continue
@@ -1223,9 +1224,11 @@ func typeFields(t reflect.Type) structFields {
 					// Do not ignore embedded fields of unexported struct types
 					// since they may have exported fields.
 				} else if isUnexported {
+					// 私有字段是不可导出，就直接跳过了，所以为什么私有变量取不到反射信息，但是直接通过 Field(i).Tag.Get("json") 还是可以获得 tag 信息的
 					// Ignore unexported non-embedded fields.
 					continue
 				}
+				// 公共字段，则可以获取到 `json` tag 信息
 				tag := sf.Tag.Get("json")
 				if tag == "-" {
 					continue
