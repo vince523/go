@@ -157,9 +157,11 @@ func chansend1(c *hchan, elem unsafe.Pointer) {
  */
 func chansend(c *hchan, ep unsafe.Pointer, block bool, callerpc uintptr) bool {
 	if c == nil {
+		// 未初始化的 chan 为nil, 当它不能阻塞的情况下，直接返回 false, 表示 send chan 失败， 写失败
 		if !block {
 			return false
 		}
+		// 当可以阻塞的情况下，抛出[chan send (nil chan)]:
 		gopark(nil, nil, waitReasonChanSendNilChan, traceEvGoStop, 2)
 		throw("unreachable")
 	}
@@ -460,9 +462,11 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 	}
 
 	if c == nil {
+		// 如果是未初始化，且不能阻塞，直接返回
 		if !block {
 			return
 		}
+		// 当可以阻塞的情况下，抛出[chan receive (nil chan)]:
 		gopark(nil, nil, waitReasonChanReceiveNilChan, traceEvGoStop, 2)
 		throw("unreachable")
 	}
