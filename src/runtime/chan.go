@@ -30,15 +30,26 @@ const (
 )
 
 type hchan struct {
+	// chan 元素的数量
 	qcount   uint           // total data in the queue
+	// chan 底层循环数组的长度
 	dataqsiz uint           // size of the circular queue
+	// 指向底层数组的指针
+	// 只针对有缓冲的 channel
 	buf      unsafe.Pointer // points to an array of dataqsiz elements
+	// channel 中元素的大小
 	elemsize uint16
+	// channel 是否关闭的标志
 	closed   uint32
+	// channel 的数据类型
 	elemtype *_type // element type
+	// 已发送的元素的 index
 	sendx    uint   // send index
+	// 已接收的元素的 index
 	recvx    uint   // receive index
+	// 等待接收的 goroutine 队列
 	recvq    waitq  // list of recv waiters
+	// 等待发送的 goroutine 队列
 	sendq    waitq  // list of send waiters
 
 	// lock protects all fields in hchan, as well as several
@@ -47,6 +58,7 @@ type hchan struct {
 	// Do not change another G's status while holding this lock
 	// (in particular, do not ready a G), as this can deadlock
 	// with stack shrinking.
+	// 保证原子操作，保护 hchan 中所有的字段
 	lock mutex
 }
 
@@ -92,12 +104,14 @@ func makechan(t *chantype, size int) *hchan {
 	switch {
 	case mem == 0:
 		// Queue or element size is zero.
+		// 无缓冲类型
 		c = (*hchan)(mallocgc(hchanSize, nil, true))
 		// Race detector uses this location for synchronization.
 		c.buf = c.raceaddr()
 	case elem.ptrdata == 0:
 		// Elements do not contain pointers.
 		// Allocate hchan and buf in one call.
+		// 缓冲类型
 		c = (*hchan)(mallocgc(hchanSize+mem, nil, true))
 		c.buf = add(unsafe.Pointer(c), hchanSize)
 	default:
@@ -108,6 +122,7 @@ func makechan(t *chantype, size int) *hchan {
 
 	c.elemsize = uint16(elem.size)
 	c.elemtype = elem
+	// 循环数组长度
 	c.dataqsiz = uint(size)
 	lockInit(&c.lock, lockRankHchan)
 
@@ -530,6 +545,9 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 		return true, false
 	}
 
+	// 等待发送队列里有goroutine 存在，说明 buf 是满的
+	// 可能是 非缓冲类型的chan, 这种情况，直接进行内存拷贝（从sender goroutine -> receiver goroutine）
+	// 可能是 缓冲类型的chan, 但是buf 满了, 这种情况 接收到循环队列数组头部的元素，并将发送者的元素放到循环数组的尾部
 	if sg := c.sendq.dequeue(); sg != nil {
 		// Found a waiting sender. If buffer is size 0, receive value
 		// directly from sender. Otherwise, receive from head of queue
@@ -539,8 +557,10 @@ func chanrecv(c *hchan, ep unsafe.Pointer, block bool) (selected, received bool)
 		return true, true
 	}
 
+	// 缓冲型，buf 有数据，可以正常接收
 	if c.qcount > 0 {
 		// Receive directly from queue
+		// 直接从循环数组里找到要接收的元素
 		qp := chanbuf(c, c.recvx)
 		if raceenabled {
 			raceacquire(qp)
