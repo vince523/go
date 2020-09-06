@@ -11,9 +11,9 @@ import (
 )
 
 type slice struct {
-	array unsafe.Pointer
-	len   int
-	cap   int
+	array unsafe.Pointer 	// 元素指针， 指向底层数组
+	len   int		// 长度
+	cap   int	 	// 容量
 }
 
 // A notInHeapSlice is a slice backed by go:notinheap memory.
