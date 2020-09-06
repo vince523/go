@@ -23,9 +23,17 @@ func throw(string) // provided by runtime
 //
 // A Mutex must not be copied after first use.
 type Mutex struct {
-	state int32
-	sema  uint32
+	state int32		// 指当前mutex
+	sema  uint32	// 信号量，用于唤醒 goroutine
 }
+
+/*
+1111 1111 ...... 1111 1111
+\_________29__________/|||
+ 存储等待 goroutine 数量 ||表示当前 mutex 是否加锁
+                      |表示当前 mutex 是否被唤醒
+                      表示 mutex 当前是否处于饥饿状态
+ */
 
 // A Locker represents an object that can be locked and unlocked.
 type Locker interface {
@@ -34,9 +42,9 @@ type Locker interface {
 }
 
 const (
-	mutexLocked = 1 << iota // mutex is locked
-	mutexWoken
-	mutexStarving
+	mutexLocked = 1 << iota // mutex is locked 1 为加锁，0 未加锁
+	mutexWoken				// mutexWoken 2 (二进制10) 1表示已唤醒，0表示未唤醒
+	mutexStarving			// mutexStarving 4(二进制100) 1 表示饥饿，0正常
 	mutexWaiterShift = iota
 
 	// Mutex fairness.
@@ -82,11 +90,12 @@ func (m *Mutex) Lock() {
 }
 
 func (m *Mutex) lockSlow() {
-	var waitStartTime int64
-	starving := false
-	awoke := false
-	iter := 0
-	old := m.state
+	var waitStartTime int64		// 当前 goroutine 开始等待的时间
+	starving := false			// mutex 当前所处的模式
+	awoke := false				// 当前 goroutine 是否被唤醒
+	iter := 0					// 自旋迭代的次数
+	old := m.state				// old 保存当前 mutex 的状态
+	// TODO read
 	for {
 		// Don't spin in starvation mode, ownership is handed off to waiters
 		// so we won't be able to acquire the mutex anyway.
