@@ -344,6 +344,7 @@ var aeskeysched [hashRandomBytes]byte
 // used in hash{32,64}.go to seed the hash function
 var hashkey [4]uintptr
 
+// 检查cpu 是否支持某些加密算法 aes, sha256 等
 func alginit() {
 	// Install AES hash algorithms if the instructions needed are present.
 	if (GOARCH == "386" || GOARCH == "amd64") &&
