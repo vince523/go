@@ -1776,8 +1776,11 @@ var newmHandoff struct {
 //
 // id is optional pre-allocated m ID. Omit by passing -1.
 //go:nowritebarrierrec
+// M 的创建
 func newm(fn func(), _p_ *p, id int64) {
+	// 根据fn和pc创建绑定一个m的对象
 	mp := allocm(_p_, fn, id)
+	// 设置当前m的下一个p为_p_
 	mp.nextp.set(_p_)
 	mp.sigmask = initSigmask
 	if gp := getg(); gp != nil && gp.m != nil && (gp.m.lockedExt != 0 || gp.m.incgo) && GOOS != "plan9" {
@@ -1805,6 +1808,7 @@ func newm(fn func(), _p_ *p, id int64) {
 		unlock(&newmHandoff.lock)
 		return
 	}
+	// 分配真实的os thread
 	newm1(mp)
 }
 
@@ -1826,6 +1830,7 @@ func newm1(mp *m) {
 		return
 	}
 	execLock.rlock() // Prevent process clone.
+	// 创建系统线程
 	newosproc(mp)
 	execLock.runlock()
 }
@@ -3565,15 +3570,21 @@ func newproc1(fn *funcval, argp unsafe.Pointer, narg int32, callergp *g, callerp
 	// Not worth it: this is almost always an error.
 	// 4*sizeof(uintreg): extra space added below
 	// sizeof(uintreg): caller's LR (arm) or return address (x86, in gostartcall).
+	// 如果函数的参数大小比2048 大的话，直接panic
 	if siz >= _StackMin-4*sys.RegSize-sys.RegSize {
 		throw("newproc: function arguments too large for new goroutine")
 	}
 
+	// 从 m 中获取 p
 	_p_ := _g_.m.p.ptr()
+	// 从gfree list 获取g
 	newg := gfget(_p_)
+	// 获取不到，就新建一个
 	if newg == nil {
 		newg = malg(_StackMin)
+		// 将g的状态改为_Gdead
 		casgstatus(newg, _Gidle, _Gdead)
+		// 添加到allg数组，防止gc 扫描清掉
 		allgadd(newg) // publishes with a g->status of Gdead so GC scanner doesn't look at uninitialized stack.
 	}
 	if newg.stack.hi == 0 {
@@ -3638,6 +3649,7 @@ func newproc1(fn *funcval, argp unsafe.Pointer, narg int32, callergp *g, callerp
 		_p_.goidcache -= _GoidCacheBatch - 1
 		_p_.goidcacheend = _p_.goidcache + _GoidCacheBatch
 	}
+	// 生成唯一的gid
 	newg.goid = int64(_p_.goidcache)
 	_p_.goidcache++
 	if raceenabled {
@@ -4316,8 +4328,10 @@ func (pp *p) destroy() {
 // gcworkbufs are not being modified by either the GC or
 // the write barrier code.
 // Returns list of Ps with local work, they need to be scheduled by the caller.
+// 所有的P都在这个函数分配，不管是最开始的初始化分配，还是后续的调整
 func procresize(nprocs int32) *p {
 	old := gomaxprocs
+	// 如果 gomaxprocs <= 0 抛出异常
 	if old < 0 || nprocs <= 0 {
 		throw("procresize: invalid arg")
 	}
