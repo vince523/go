@@ -835,7 +835,7 @@ type itab struct {
 	_type *_type		// 结构类型
 	hash  uint32 // copy of _type.hash. Used for type switches.
 	_     [4]byte
-	fun   [1]uintptr // variable sized. fun[0]==0 means _type does not implement inter. 方法集合
+	fun   [1]uintptr // variable sized. fun[0]==0 means _type does not implement inter. 方法集合, 存储具体实现
 }
 
 // Lock-free stack node.
